@@ -5,15 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1780722148856,
-      "tag": "0000_open_maddog",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1780723046747,
-      "tag": "0001_famous_namorita",
+      "when": 1780729770318,
+      "tag": "0000_closed_machine_man",
       "breakpoints": true
     }
   ]

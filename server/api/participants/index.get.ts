@@ -1,7 +1,15 @@
 import { z } from 'zod'
 
 const querySchema = z.object({
-  tipo: z.enum(['PRODUTOR', 'COOPERATIVA', 'AGROINDUSTRIA', 'TRANSPORTADOR']),
+  tipo: z
+    .enum([
+      'PRODUTOR',
+      'COOPERATIVA',
+      'TRANSPORTADOR',
+      'AGROINDUSTRIA',
+      'EXPORTADORA',
+    ])
+    .optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -10,8 +18,9 @@ export default defineEventHandler(async (event) => {
   if (!query.success) {
     throw createError({
       statusCode: 422,
-      statusMessage: 'Informe um tipo de participante válido',
+      statusMessage: 'Tipo de participante inválido',
     })
   }
-  return listParticipants(query.data.tipo)
+  if (query.data.tipo) return listParticipants(query.data.tipo)
+  return listAllParticipants()
 })

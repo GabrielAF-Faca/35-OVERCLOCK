@@ -1,549 +1,718 @@
 <script setup lang="ts">
-import { markRaw } from 'vue'
+import { markRaw, shallowRef, triggerRef } from 'vue'
 import {
   VueFlow,
   useVueFlow,
   type Node,
   type Edge,
-  type NodeMouseEvent,
+  type Connection,
+  type NodeTypesObject,
 } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
 import { MiniMap } from '@vue-flow/minimap'
 import GlmNode from '~/components/flow/GlmNode.vue'
+import {
+  ROLES,
+  ROLE_CONFIG,
+  canConnect,
+  tipoToRole,
+  type RoleKey,
+  type NodeEntity,
+  type FlowNode,
+  type FlowEdge,
+} from '#shared/domain'
+import {
+  getChainInfo,
+  calcResultados,
+  type ResultadoFluxo,
+} from '#shared/chain'
 
 const { money, number } = useFormat()
-
-interface Oferta {
-  id: string
-  quantidadeDisponivel: string
-  precoUnitarioDesejado: string
-  produtorNome: string
-  produtorTipo: string | null
-  culturaId: string
-  culturaNome: string
-  tipoCarga: string
-  unidadeMedida: string
-}
-interface Demanda {
-  id: string
-  quantidadeNecessaria: string
-  precoMaximoAceitavel: string
-  distanciaMaximaKm: number
-  compradorNome: string
-  compradorTipo: string | null
-  culturaId: string
-  culturaNome: string
-  tipoCarga: string
-  unidadeMedida: string
-}
-interface Veiculo {
-  id: string
-  capacidadeMaxima: string
-  precoPorKm: string
-  tiposCargaSuportados: string[]
-  transportadorNome: string
-}
-interface RotaOtimizada {
-  ofertaId: string
-  veiculoId: string
-  produtorNome: string
-  transportadorNome: string
-  quantidadeNegociada: number
-  precoUnitario: number
-  precoPorKm: number
-  distanciaKm: number
-  valorProduto: number
-  valorFrete: number
-  custoTotal: number
-}
-
-const nodeTypes = { glm: markRaw(GlmNode) }
-
-const { data: ofertas, refresh: refreshOfertas } = await useFetch<Oferta[]>(
-  '/api/ofertas',
-  { default: () => [] },
-)
-const { data: demandas, refresh: refreshDemandas } = await useFetch<Demanda[]>(
-  '/api/demandas',
-  { default: () => [] },
-)
-const { data: veiculos, refresh: refreshVeiculos } = await useFetch<Veiculo[]>(
-  '/api/veiculos',
-  { default: () => [] },
+const { styleOf } = useRoleStyle()
+const { user } = useUserSession()
+const meuPapel = computed<RoleKey | null>(() =>
+  tipoToRole(user.value?.tipoUsuario),
 )
 
-const nodes = ref<Node[]>([])
-const edges = ref<Edge[]>([])
+const nodeTypes = { glm: markRaw(GlmNode) } as unknown as NodeTypesObject
 
-function buildNodes() {
-  // Layout: Produtor → Transportadora → Cooperativa → Transportadora → Agronegócio
-  const col = {
-    produtor: 40,
-    transp1: 280,
-    cooperativa: 520,
-    transp2: 760,
-    agronegocio: 1000,
+const vfNodes = shallowRef<Node[]>([])
+const vfEdges = shallowRef<Edge[]>([])
+let nodeSeq = 1
+let edgeSeq = 1
+
+const {
+  addEdges,
+  removeNodes,
+  removeEdges,
+  onConnect,
+  onEdgeClick,
+  fitView,
+  screenToFlowCoordinate,
+} = useVueFlow()
+
+const { data: me } = await useFetch<NodeEntity>('/api/me')
+
+const toastMsg = ref('')
+const toastKind = ref<'success' | 'error' | 'info'>('info')
+let toastTimer: ReturnType<typeof setTimeout> | null = null
+function toast(msg: string, kind: 'success' | 'error' | 'info' = 'info') {
+  toastMsg.value = msg
+  toastKind.value = kind
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => (toastMsg.value = ''), 3200)
+}
+
+interface RawNode {
+  id: string
+  position: { x: number; y: number }
+  data: { role: RoleKey; entity: NodeEntity | null }
+}
+interface RawEdge {
+  id: string
+  source: string
+  target: string
+  data?: { frete: FlowEdge['frete'] }
+  label?: string
+  style?: Record<string, unknown>
+  labelBgStyle?: Record<string, unknown>
+  labelStyle?: Record<string, unknown>
+}
+function toFlowNodes(): FlowNode[] {
+  return (vfNodes.value as unknown as RawNode[]).map((n) => ({
+    id: n.id,
+    type: n.data.role,
+    x: n.position.x,
+    y: n.position.y,
+    dbId: n.data.entity?.id ?? null,
+    dbData: n.data.entity ?? null,
+  }))
+}
+function toFlowEdges(): FlowEdge[] {
+  return (vfEdges.value as unknown as RawEdge[]).map((e) => ({
+    id: e.id,
+    from: e.source,
+    to: e.target,
+    frete: e.data?.frete ?? null,
+  }))
+}
+
+const resultados = ref<ResultadoFluxo[]>([])
+const totalGeral = computed(() =>
+  resultados.value.reduce((s, r) => s + r.receita, 0),
+)
+
+function refreshDerived() {
+  const fn = toFlowNodes()
+  const fe = toFlowEdges()
+  for (const e of vfEdges.value as unknown as RawEdge[]) {
+    const from = fn.find((n) => n.id === e.source)
+    const to = fn.find((n) => n.id === e.target)
+    const col = from ? ROLE_CONFIG[from.type].color : '#94a3b8'
+    e.label = edgeLabel(fn, fe, from, to, e)
+    e.style = { stroke: col, strokeWidth: 2 }
+    e.labelBgStyle = { fill: '#fff' }
+    e.labelStyle = { fill: col, fontWeight: 700, fontSize: '11px' }
   }
-  const stepY = 150
-  const out: Node[] = []
-
-  // Col 1: Produtores (apenas ofertas de PRODUTOR)
-  const ofertasProd = ofertas.value.filter((o) => o.produtorTipo === 'PRODUTOR')
-  ofertasProd.forEach((o, i) => {
-    out.push({
-      id: `ofr-${o.id}`,
-      type: 'glm',
-      position: { x: col.produtor, y: 40 + i * stepY },
-      data: {
-        kind: 'producer',
-        label: o.produtorNome,
-        subtitle: `${o.culturaNome} · ${number(o.quantidadeDisponivel)} ${o.unidadeMedida}`,
-        metric: `${money(o.precoUnitarioDesejado)} / un`,
-      },
-    })
-  })
-
-  // Col 2: Transportadoras 1ª perna (produtor → cooperativa)
-  veiculos.value.forEach((v, i) => {
-    out.push({
-      id: `veh-l1-${v.id}`,
-      type: 'glm',
-      position: { x: col.transp1, y: 40 + i * stepY },
-      data: {
-        kind: 'logistics',
-        label: v.transportadorNome,
-        subtitle: `1ª perna · ${v.tiposCargaSuportados.join(', ')}`,
-        metric: `${money(v.precoPorKm)}/km · cap ${number(v.capacidadeMaxima)}`,
-      },
-    })
-  })
-
-  // Col 3: Cooperativas (demandas de compra + ofertas de venda)
-  const demandasCoop = demandas.value.filter(
-    (d) => d.compradorTipo === 'COOPERATIVA',
-  )
-  const ofertasCoop = ofertas.value.filter(
-    (o) => o.produtorTipo === 'COOPERATIVA',
-  )
-
-  demandasCoop.forEach((d, i) => {
-    out.push({
-      id: `dmd-${d.id}`,
-      type: 'glm',
-      position: { x: col.cooperativa, y: 40 + i * stepY },
-      data: {
-        kind: 'cooperative',
-        entityId: d.id,
-        selectable: true,
-        label: d.compradorNome,
-        subtitle: `Compra: ${d.culturaNome} · ${number(d.quantidadeNecessaria)} ${d.unidadeMedida}`,
-        metric: `≤ ${money(d.precoMaximoAceitavel)} · raio ${d.distanciaMaximaKm}km`,
-      },
-    })
-  })
-
-  ofertasCoop.forEach((o, i) => {
-    out.push({
-      id: `ofr-${o.id}`,
-      type: 'glm',
-      position: {
-        x: col.cooperativa,
-        y: 40 + (demandasCoop.length + i) * stepY,
-      },
-      data: {
-        kind: 'cooperative',
-        label: o.produtorNome,
-        subtitle: `Vende: ${o.culturaNome} · ${number(o.quantidadeDisponivel)} ${o.unidadeMedida}`,
-        metric: `${money(o.precoUnitarioDesejado)} / un`,
-      },
-    })
-  })
-
-  // Col 4: Transportadoras 2ª perna (cooperativa → agronegócio)
-  veiculos.value.forEach((v, i) => {
-    out.push({
-      id: `veh-l2-${v.id}`,
-      type: 'glm',
-      position: { x: col.transp2, y: 40 + i * stepY },
-      data: {
-        kind: 'logistics',
-        label: v.transportadorNome,
-        subtitle: `2ª perna · ${v.tiposCargaSuportados.join(', ')}`,
-        metric: `${money(v.precoPorKm)}/km · cap ${number(v.capacidadeMaxima)}`,
-      },
-    })
-  })
-
-  // Col 5: Agronegócio (apenas demandas de AGROINDUSTRIA)
-  const demandasAgro = demandas.value.filter(
-    (d) => d.compradorTipo === 'AGROINDUSTRIA',
-  )
-  demandasAgro.forEach((d, i) => {
-    out.push({
-      id: `dmd-${d.id}`,
-      type: 'glm',
-      position: { x: col.agronegocio, y: 40 + i * stepY },
-      data: {
-        kind: 'market',
-        entityId: d.id,
-        selectable: true,
-        label: d.compradorNome,
-        subtitle: `${d.culturaNome} · ${number(d.quantidadeNecessaria)} ${d.unidadeMedida}`,
-        metric: `≤ ${money(d.precoMaximoAceitavel)} · raio ${d.distanciaMaximaKm}km`,
-      },
-    })
-  })
-
-  nodes.value = out
+  triggerRef(vfEdges)
+  resultados.value = calcResultados(fn, fe)
 }
 
-function buildBaseEdges(): Edge[] {
-  const out: Edge[] = []
+function edgeLabel(
+  fn: FlowNode[],
+  fe: FlowEdge[],
+  from: FlowNode | undefined,
+  to: FlowNode | undefined,
+  e: RawEdge,
+): string {
+  if (!from || !to) return ''
+  const frete = e.data?.frete ?? null
 
-  for (const d of demandas.value) {
-    const dmd = `dmd-${d.id}`
-    const leg = d.compradorTipo === 'COOPERATIVA' ? 'l1' : 'l2'
-
-    // Aresta: oferta → demanda (fluxo do produto)
-    for (const o of ofertas.value) {
-      if (o.culturaId === d.culturaId) {
-        out.push(aresta(`ofr-${o.id}`, dmd, false))
-      }
-    }
-
-    // Aresta: transportadora → demanda (fluxo logístico da perna correta)
-    for (const v of veiculos.value) {
-      if (v.tiposCargaSuportados.includes(d.tipoCarga)) {
-        out.push(aresta(`veh-${leg}-${v.id}`, dmd, false))
-      }
-    }
+  if (from.type === 'produtor') {
+    if (!from.dbData) return 'Vincule o produtor'
+    return `${number(from.dbData.quantidade ?? 0)} t — ${from.dbData.cultura ?? ''}`
   }
-  return out
+
+  if (to.type === 'transportador') {
+    return frete?.label ?? 'Configure o frete'
+  }
+
+  if (from.type === 'transportador' && to.type === 'cooperativa') {
+    return frete?.label ?? 'Configure o frete'
+  }
+
+  if (to.type === 'agroindustria' || to.type === 'exportadora') {
+    const info = getChainInfo(fn, fe, to.id)
+    if (!info?.prodNode?.dbData) return 'Conecte um produtor'
+    const qtd = info.prodNode.dbData.quantidade ?? 0
+    const receita =
+      (info.cotacao + info.bonus) * qtd -
+      Math.max(0, info.totalFrete - info.coopDiscount)
+    return money(receita)
+  }
+  return ''
 }
 
-buildNodes()
-edges.value = buildBaseEdges()
+function addNode(role: RoleKey) {
+  const id = `n${nodeSeq++}`
+  const offset = (vfNodes.value.length % 5) * 40
+  const center = screenToFlowCoordinate({
+    x: window.innerWidth / 2,
+    y: window.innerHeight / 2,
+  })
+  let entity: NodeEntity | null = null
+  if (role === 'produtor' && meuPapel.value === 'produtor' && me.value) {
+    entity = me.value
+  }
+  const novo = {
+    id,
+    type: 'glm',
+    position: { x: center.x - 130 + offset, y: center.y - 80 + offset },
+    data: { role, entity, onSelect: openSelector, onRemove: removeNode },
+  } as unknown as Node
+  vfNodes.value = [...vfNodes.value, novo]
+  if (!entity) openSelector(id)
+  refreshDerived()
+}
 
-const { onNodeClick, fitView } = useVueFlow()
+function removeNode(id: string) {
+  removeNodes([id])
+  nextTick(refreshDerived)
+}
 
-const demandaSel = ref<Demanda | null>(null)
-const rotas = ref<RotaOtimizada[]>([])
-const rotaSelIdx = ref(0)
-const otimizando = ref(false)
-const erro = ref('')
-const fechando = ref(false)
+function clearCanvas() {
+  if (!confirm('Limpar o canvas? O fluxo atual será perdido.')) return
+  vfNodes.value = []
+  vfEdges.value = []
+  resultados.value = []
+}
 
-onNodeClick((e: NodeMouseEvent) => {
-  const id = e.node.data?.entityId as string | undefined
-  const kind = e.node.data?.kind as string | undefined
-  if ((kind !== 'market' && kind !== 'cooperative') || !id) return
-  const d = demandas.value.find((x) => x.id === id)
-  if (d) selecionarDemanda(d)
-})
-
-async function selecionarDemanda(d: Demanda) {
-  demandaSel.value = d
-  rotas.value = []
-  rotaSelIdx.value = 0
-  erro.value = ''
-  otimizando.value = true
-  try {
-    const res = await $fetch<{ rotas: RotaOtimizada[] }>(
-      `/api/demandas/${d.id}/otimizar`,
+onConnect((conn: Connection) => {
+  const from = vfNodes.value.find((n) => n.id === conn.source)
+  const to = vfNodes.value.find((n) => n.id === conn.target)
+  if (!from || !to || from.id === to.id) return
+  const fr = from.data.role as RoleKey
+  const tr = to.data.role as RoleKey
+  if (!canConnect(fr, tr)) {
+    toast(
+      `${ROLE_CONFIG[fr].label} → ${ROLE_CONFIG[tr].label} não é válida`,
+      'error',
     )
-    rotas.value = res.rotas
-    desenharArestas()
-  } catch (e) {
-    erro.value =
-      (e as { statusMessage?: string }).statusMessage ?? 'Erro ao otimizar'
-  } finally {
-    otimizando.value = false
-  }
-}
-
-function desenharArestas() {
-  if (!demandaSel.value) {
-    edges.value = buildBaseEdges()
     return
   }
-  const dmd = `dmd-${demandaSel.value.id}`
-  const leg = demandaSel.value.compradorTipo === 'COOPERATIVA' ? 'l1' : 'l2'
-  const sel = rotas.value[rotaSelIdx.value]
-  const arestaOfr = sel ? `ofr-${sel.ofertaId}__${dmd}` : ''
-  const arestaVeh = sel ? `veh-${leg}-${sel.veiculoId}__${dmd}` : ''
-
-  const base = buildBaseEdges()
-  for (const e of base) {
-    if (e.id === arestaOfr || e.id === arestaVeh) {
-      e.animated = true
-      e.style = { stroke: '#039855', strokeWidth: 3 }
-    }
+  if (vfEdges.value.some((e) => e.source === from.id && e.target === to.id)) {
+    toast('Conexão já existe', 'error')
+    return
   }
-  edges.value = base
+  const id = `e${edgeSeq++}`
+  addEdges([{ id, source: from.id, target: to.id, data: { frete: null } }])
+  const needsFrete =
+    fr === 'transportador' || (fr === 'cooperativa' && tr === 'transportador')
+  if (needsFrete) openFrete(id)
+  else toast('Conexão criada', 'success')
+  nextTick(refreshDerived)
+})
+
+function removeEdge(id: string) {
+  removeEdges([id])
+  nextTick(refreshDerived)
 }
 
-function aresta(source: string, target: string, realce: boolean): Edge {
-  return {
-    id: `${source}__${target}`,
-    source,
-    target,
-    animated: realce,
-    style: realce
-      ? { stroke: '#039855', strokeWidth: 3 }
-      : { stroke: '#cbd5e1', strokeWidth: 1.5, strokeDasharray: '4 4' },
-  }
-}
+onEdgeClick(({ edge }) => {
+  if (confirm('Remover esta conexão?')) removeEdge(edge.id)
+})
 
-function escolherRota(idx: number) {
-  rotaSelIdx.value = idx
-  desenharArestas()
-}
+const selOpen = ref(false)
+const selNodeId = ref<string | null>(null)
+const selRole = ref<RoleKey>('produtor')
+const selQuery = ref('')
+const selItems = ref<NodeEntity[]>([])
+const selLoading = ref(false)
 
-function fecharPainel() {
-  demandaSel.value = null
-  rotas.value = []
-  edges.value = buildBaseEdges()
-}
-
-async function fecharContrato() {
-  const r = rotas.value[rotaSelIdx.value]
-  if (!demandaSel.value || !r) return
-  erro.value = ''
-  fechando.value = true
+async function openSelector(nodeId: string) {
+  const node = vfNodes.value.find((n) => n.id === nodeId)
+  if (!node) return
+  selNodeId.value = nodeId
+  selRole.value = node.data.role as RoleKey
+  selQuery.value = ''
+  selItems.value = []
+  selOpen.value = true
+  selLoading.value = true
   try {
-    await $fetch('/api/contratos', {
+    const tipo = ROLE_CONFIG[selRole.value].tipo
+    let items = await $fetch<NodeEntity[]>('/api/participants', {
+      query: { tipo },
+    })
+
+    if (
+      selRole.value === 'cooperativa' &&
+      meuPapel.value === 'produtor' &&
+      me.value?.cultura
+    ) {
+      items = items.filter((i) => i.cultura === me.value!.cultura)
+    }
+    selItems.value = items
+  } finally {
+    selLoading.value = false
+  }
+}
+
+const selFiltered = computed(() => {
+  const q = selQuery.value.toLowerCase()
+  if (!q) return selItems.value
+  return selItems.value.filter(
+    (i) =>
+      i.name.toLowerCase().includes(q) ||
+      (i.cidade ?? '').toLowerCase().includes(q) ||
+      (i.cultura ?? '').toLowerCase().includes(q),
+  )
+})
+
+function pickEntity(entity: NodeEntity) {
+  const node = vfNodes.value.find((n) => n.id === selNodeId.value)
+  if (node) node.data = { ...node.data, entity }
+  triggerRef(vfNodes)
+  selOpen.value = false
+  refreshDerived()
+  toast('Dados vinculados', 'success')
+}
+
+function selTag(i: NodeEntity): string {
+  if (selRole.value === 'produtor') return `${number(i.quantidade ?? 0)} t`
+  if (selRole.value === 'transportador')
+    return `${money(i.precoPorTonelada ?? 0)}/t`
+  return `${money(i.cotacao ?? 0)}/t`
+}
+
+const freteOpen = ref(false)
+const freteEdgeId = ref<string | null>(null)
+const freteQtd = ref<number | null>(null)
+
+const freteEdge = computed(() =>
+  vfEdges.value.find((e) => e.id === freteEdgeId.value),
+)
+const freteTransportador = computed<NodeEntity | null>(() => {
+  const e = freteEdge.value
+  if (!e) return null
+  const from = vfNodes.value.find((n) => n.id === e.source)
+  const to = vfNodes.value.find((n) => n.id === e.target)
+  if ((from?.data.role as RoleKey) === 'transportador')
+    return from!.data.entity as NodeEntity
+  return (to?.data.entity as NodeEntity) ?? null
+})
+const fretePreco = computed(
+  () => freteTransportador.value?.precoPorTonelada ?? 0,
+)
+const freteCusto = computed(() => (freteQtd.value ?? 0) * fretePreco.value)
+
+function openFrete(edgeId: string) {
+  freteEdgeId.value = edgeId
+  const e = vfEdges.value.find((x) => x.id === edgeId)
+
+  let autoQtd = 0
+  if (e) {
+    const from = vfNodes.value.find((n) => n.id === e.source)
+    const upstream = vfEdges.value.find(
+      (x) =>
+        x.target === from?.id &&
+        (vfNodes.value.find((n) => n.id === x.source)?.data.role as RoleKey) ===
+          'produtor',
+    )
+    const prod = upstream
+      ? vfNodes.value.find((n) => n.id === upstream.source)
+      : null
+    autoQtd =
+      (prod?.data.entity as NodeEntity | null)?.quantidade ??
+      (from?.data.entity as NodeEntity | null)?.quantidade ??
+      0
+  }
+  freteQtd.value = autoQtd || null
+  freteOpen.value = true
+}
+
+function confirmFrete() {
+  const e = freteEdge.value
+  const qtd = freteQtd.value ?? 0
+  if (!e || qtd <= 0) return
+  const custo = qtd * fretePreco.value
+  e.data = {
+    ...e.data,
+    frete: { qtd, custo, label: `${money(custo)} · ${number(qtd)} t` },
+  }
+  triggerRef(vfEdges)
+  freteOpen.value = false
+  refreshDerived()
+  toast(`Frete configurado: ${money(custo)}`, 'success')
+}
+
+function cancelFrete() {
+  freteOpen.value = false
+}
+
+const flowName = ref('Novo Fluxo')
+const flowsOpen = ref(false)
+const flowList = ref<{ id: string; nome: string; createdAt: string }[]>([])
+
+async function saveFlow() {
+  try {
+    await $fetch('/api/fluxos', {
       method: 'POST',
       body: {
-        ofertaId: r.ofertaId,
-        demandaId: demandaSel.value.id,
-        veiculoId: r.veiculoId,
-        quantidadeNegociada: r.quantidadeNegociada,
-        valorTotalProduto: r.valorProduto,
-        valorTotalFrete: r.valorFrete,
-        distanciaRotaKm: r.distanciaKm,
+        nome: flowName.value,
+        nodes: toFlowNodes(),
+        edges: toFlowEdges(),
       },
     })
-    await recarregar()
-  } catch (e) {
-    erro.value =
-      (e as { statusMessage?: string }).statusMessage ?? 'Erro ao fechar'
-  } finally {
-    fechando.value = false
+    toast(`Fluxo "${flowName.value}" salvo!`, 'success')
+  } catch (err) {
+    toast(mensagemErro(err), 'error')
   }
 }
 
-async function recarregar() {
-  await Promise.all([refreshOfertas(), refreshDemandas(), refreshVeiculos()])
-  buildNodes()
-  demandaSel.value = null
-  rotas.value = []
-  edges.value = buildBaseEdges()
+async function openFlows() {
+  try {
+    const url = '/api/fluxos'
+    flowList.value =
+      await $fetch<{ id: string; nome: string; createdAt: string }[]>(url)
+    flowsOpen.value = true
+  } catch (err) {
+    toast(mensagemErro(err), 'error')
+  }
 }
 
-const vazio = computed(
-  () =>
-    !ofertas.value.length && !demandas.value.length && !veiculos.value.length,
-)
+async function loadFlow(id: string) {
+  try {
+    const url = `/api/fluxos/${id}`
+    const flow = await $fetch<{
+      nome: string
+      nodes: FlowNode[]
+      edges: FlowEdge[]
+    }>(url)
+    flowName.value = flow.nome
+    vfNodes.value = flow.nodes.map((n) => ({
+      id: n.id,
+      type: 'glm',
+      position: { x: n.x, y: n.y },
+      data: {
+        role: n.type,
+        entity: n.dbData,
+        onSelect: openSelector,
+        onRemove: removeNode,
+      },
+    })) as unknown as Node[]
+    vfEdges.value = flow.edges.map((e) => ({
+      id: e.id,
+      source: e.from,
+      target: e.to,
+      data: { frete: e.frete },
+    })) as unknown as Edge[]
+    nodeSeq =
+      Math.max(
+        0,
+        ...flow.nodes.map((n) => Number(n.id.replace('n', '')) || 0),
+      ) + 1
+    edgeSeq =
+      Math.max(
+        0,
+        ...flow.edges.map((e) => Number(e.id.replace('e', '')) || 0),
+      ) + 1
+    flowsOpen.value = false
+    refreshDerived()
+    nextTick(() => fitView({ padding: 0.2 }))
+    toast(`Fluxo "${flow.nome}" carregado`, 'success')
+  } catch (err) {
+    toast(mensagemErro(err), 'error')
+  }
+}
+
+function mensagemErro(err: unknown): string {
+  return (err as { statusMessage?: string })?.statusMessage ?? 'Erro inesperado'
+}
+
+const vazio = computed(() => vfNodes.value.length === 0)
 </script>
 
 <template>
-  <div class="relative h-full w-full">
-    <!-- Painel de instruções / ações -->
-    <div
-      class="absolute left-4 top-4 z-10 w-60 rounded-2xl border border-glm-100 bg-white/90 p-3 shadow-lg backdrop-blur"
+  <div class="relative flex h-full w-full">
+    <aside
+      class="z-10 flex w-56 shrink-0 flex-col gap-4 overflow-y-auto border-r border-glm-100 bg-white/90 p-3 backdrop-blur"
     >
-      <p
-        class="px-1 pb-1 text-xs font-bold uppercase tracking-wider text-slate-400"
-      >
-        Otimização de grafo
-      </p>
-      <p class="px-1 pb-2 text-xs leading-relaxed text-slate-500">
-        Clique em um nó de
-        <span class="font-semibold text-emerald-700">cooperativa</span> ou
-        <span class="font-semibold text-teal-700">agroindústria</span>
-        para gerar o ranking de rotas de menor custo.
-      </p>
-      <div class="space-y-1 border-t border-slate-100 pt-2">
+      <div>
+        <p
+          class="px-1 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400"
+        >
+          Adicionar nó
+        </p>
         <button
-          class="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-glm-50"
+          v-for="role in ROLES"
+          :key="role"
+          class="mb-1 flex w-full items-center gap-2.5 rounded-lg border border-transparent px-2.5 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-200 hover:bg-slate-50"
+          @click="addNode(role)"
+        >
+          <span
+            class="flex size-6 items-center justify-center rounded-md"
+            :class="styleOf(role).iconBg"
+          >
+            <Icon :name="styleOf(role).icon" size="14" />
+          </span>
+          {{ ROLE_CONFIG[role].label }}
+          <Icon name="lucide:plus" size="14" class="ml-auto text-slate-300" />
+        </button>
+      </div>
+
+      <div class="border-t border-slate-100 pt-3">
+        <p
+          class="px-1 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400"
+        >
+          Resultados
+        </p>
+        <p v-if="!resultados.length" class="px-1 text-[10px] text-slate-400">
+          Conecte destinos finais para ver a receita.
+        </p>
+        <div
+          v-for="r in resultados"
+          :key="r.destId"
+          class="mb-1.5 rounded-lg border border-glm-100 bg-glm-50/60 p-2"
+        >
+          <p class="text-[9px] font-bold text-glm-700">
+            {{ r.produtorNome }} → {{ r.destinoNome }}
+          </p>
+          <p class="text-sm font-extrabold text-glm-800">
+            {{ money(r.receita) }}
+          </p>
+          <p class="text-[9px] text-slate-400">
+            ({{ money(r.cotacaoEfetiva) }}/t × {{ number(r.quantidade) }} t) −
+            frete {{ money(r.totalFrete) }}
+          </p>
+        </div>
+        <div
+          v-if="resultados.length"
+          class="mt-1 rounded-lg bg-glm-600 px-2 py-1.5 text-center text-xs font-bold text-white"
+        >
+          {{ resultados.length }} fluxo(s) · {{ money(totalGeral) }}
+        </div>
+      </div>
+
+      <div
+        class="border-t border-slate-100 pt-3 text-[10px] leading-relaxed text-slate-500"
+      >
+        <p class="pb-1 font-bold uppercase tracking-wider text-slate-400">
+          Legenda
+        </p>
+        <p>Produtor → Coop/Trans: toneladas</p>
+        <p>→ Transportador: valor do frete</p>
+        <p>→ Agro/Expo: receita líquida</p>
+      </div>
+    </aside>
+
+    <div class="relative min-w-0 flex-1">
+      <div
+        class="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-xl border border-glm-100 bg-white/90 p-2 shadow backdrop-blur"
+      >
+        <input
+          v-model="flowName"
+          class="w-40 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs outline-none focus:border-glm-400"
+          placeholder="Nome do fluxo"
+        />
+        <button class="btn-icon" title="Salvar fluxo" @click="saveFlow">
+          <Icon name="lucide:save" size="16" />
+        </button>
+        <button class="btn-icon" title="Carregar fluxo" @click="openFlows">
+          <Icon name="lucide:folder-open" size="16" />
+        </button>
+        <button class="btn-icon" title="Limpar" @click="clearCanvas">
+          <Icon name="lucide:trash-2" size="16" />
+        </button>
+        <button
+          class="btn-icon"
+          title="Centralizar"
           @click="() => fitView({ padding: 0.2 })"
         >
-          <Icon name="lucide:maximize" size="16" class="text-glm-500" />
-          Centralizar
-        </button>
-        <button
-          class="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-glm-50"
-          @click="recarregar"
-        >
-          <Icon name="lucide:refresh-cw" size="16" class="text-glm-500" />
-          Recarregar dados
+          <Icon name="lucide:maximize" size="16" />
         </button>
       </div>
+
       <div
-        class="mt-2 space-y-1 border-t border-slate-100 pt-2 text-[11px] text-slate-400"
+        v-if="vazio"
+        class="pointer-events-none absolute inset-0 z-[5] flex items-center justify-center"
       >
-        <p>
-          <span class="font-semibold text-glm-700">{{ ofertas.length }}</span>
-          ofertas ·
-          <span class="font-semibold text-teal-700">{{ demandas.length }}</span>
-          demandas ·
-          <span class="font-semibold text-lime-700">{{ veiculos.length }}</span>
-          veículos
-        </p>
+        <div class="text-center text-slate-400">
+          <div
+            class="mx-auto flex size-14 items-center justify-center rounded-2xl bg-glm-100 text-glm-700"
+          >
+            <Icon name="lucide:workflow" size="26" />
+          </div>
+          <p class="mt-3 text-sm font-semibold text-slate-600">Canvas vazio</p>
+          <p class="mt-1 text-xs">Adicione nós pelo painel à esquerda.</p>
+        </div>
       </div>
+
+      <VueFlow
+        v-model:nodes="vfNodes"
+        v-model:edges="vfEdges"
+        :node-types="nodeTypes"
+        :default-viewport="{ zoom: 0.85, x: 0, y: 0 }"
+        :min-zoom="0.3"
+        :max-zoom="2"
+        class="bg-glm-50/30"
+      >
+        <Background :gap="22" :size="1.4" pattern-color="#a6f4c5" />
+        <Controls position="bottom-right" />
+        <MiniMap pannable zoomable node-color="#12b76a" />
+
+        <template #edge-label="{ label }">
+          <span>{{ label }}</span>
+        </template>
+      </VueFlow>
+
+      <p
+        class="absolute bottom-4 left-1/2 z-[5] -translate-x-1/2 rounded-full bg-white/80 px-3 py-1 text-[11px] text-slate-400 shadow-sm ring-1 ring-slate-100"
+      >
+        Clique numa conexão para removê-la
+      </p>
     </div>
 
-    <!-- Empty state -->
-    <div
-      v-if="vazio"
-      class="absolute inset-0 z-10 flex items-center justify-center"
-    >
-      <div class="max-w-xs text-center">
-        <div
-          class="mx-auto flex size-14 items-center justify-center rounded-2xl bg-glm-100 text-glm-700"
-        >
-          <Icon name="lucide:workflow" size="26" />
-        </div>
-        <p class="mt-4 text-sm font-semibold text-slate-700">Grafo vazio</p>
-        <p class="mt-1 text-xs text-slate-400">
-          Cadastre produtores, demandas e veículos para montar a cadeia e
-          otimizar.
-        </p>
-      </div>
-    </div>
-
-    <!-- Painel de ranking -->
-    <Transition name="page">
-      <aside
-        v-if="demandaSel"
-        class="absolute right-4 top-4 bottom-4 z-10 flex w-80 flex-col overflow-hidden rounded-2xl border border-glm-100 bg-white/95 shadow-xl backdrop-blur"
-      >
-        <div
-          class="flex items-start justify-between border-b border-slate-100 px-4 py-3"
-        >
-          <div class="min-w-0">
-            <h3
-              class="flex items-center gap-1.5 text-sm font-bold text-slate-900"
-            >
-              <Icon name="lucide:route" size="16" class="text-glm-600" />
-              Ranking de rotas
-            </h3>
-            <p class="mt-0.5 truncate text-xs text-slate-400">
-              {{ demandaSel.compradorNome }} · {{ demandaSel.culturaNome }}
-            </p>
-            <p class="text-[11px] text-slate-400">C = (Q × Pp) + (D × Pk)</p>
-          </div>
-          <button
-            class="rounded-lg p-1 text-slate-400 hover:bg-slate-100"
-            @click="fecharPainel"
-          >
-            <Icon name="lucide:x" size="16" />
-          </button>
-        </div>
-
-        <div class="min-h-0 flex-1 overflow-y-auto p-3">
-          <p
-            v-if="erro"
-            class="mb-2 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-700"
-          >
-            {{ erro }}
-          </p>
-
-          <div
-            v-if="otimizando"
-            class="py-10 text-center text-xs text-slate-400"
-          >
-            <Icon name="lucide:loader-circle" size="22" class="animate-spin" />
-            <p class="mt-2">Varrendo o grafo…</p>
-          </div>
-
-          <div
-            v-else-if="!rotas.length"
-            class="py-10 text-center text-xs text-slate-400"
-          >
-            Nenhuma combinação Produtor + Transportador atende esta demanda
-            dentro do raio e do preço.
-          </div>
-
-          <ul v-else class="space-y-2">
-            <li
-              v-for="(r, idx) in rotas"
-              :key="r.ofertaId + r.veiculoId"
-              class="cursor-pointer rounded-xl p-3 ring-1 transition"
-              :class="
-                idx === rotaSelIdx
-                  ? 'bg-glm-50 ring-glm-300'
-                  : 'bg-white ring-slate-200 hover:ring-glm-200'
-              "
-              @click="escolherRota(idx)"
-            >
-              <div class="flex items-center justify-between">
-                <span
-                  v-if="idx === 0"
-                  class="rounded-full bg-glm-600 px-1.5 py-0.5 text-[9px] font-bold uppercase text-white"
-                >
-                  Melhor
-                </span>
-                <span v-else class="text-[11px] font-medium text-slate-400"
-                  >#{{ idx + 1 }}</span
-                >
-                <span class="text-sm font-bold text-glm-700">{{
-                  money(r.custoTotal)
-                }}</span>
-              </div>
-              <p class="mt-1 truncate text-xs font-semibold text-slate-700">
-                {{ r.produtorNome }}
-                <Icon
-                  name="lucide:arrow-right"
-                  size="11"
-                  class="mx-0.5 text-slate-300"
-                />
-                {{ r.transportadorNome }}
-              </p>
-              <div
-                class="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-slate-400"
-              >
-                <span>Q {{ number(r.quantidadeNegociada) }}</span>
-                <span>D {{ number(r.distanciaKm) }}km</span>
-                <span>Prod {{ money(r.valorProduto) }}</span>
-                <span>Frete {{ money(r.valorFrete) }}</span>
-              </div>
-            </li>
-          </ul>
-        </div>
-
-        <div v-if="rotas.length" class="border-t border-slate-100 p-3">
-          <button
-            class="btn-primary w-full"
-            :disabled="fechando"
-            @click="fecharContrato"
-          >
-            <Icon name="lucide:handshake" size="16" />
-            Fechar contrato (rota #{{ rotaSelIdx + 1 }})
-          </button>
-        </div>
-      </aside>
-    </Transition>
-
-    <VueFlow
-      v-model:nodes="nodes"
-      v-model:edges="edges"
-      :node-types="nodeTypes"
-      :default-viewport="{ zoom: 0.8, x: 0, y: 0 }"
-      :min-zoom="0.3"
-      :max-zoom="2"
-      fit-view-on-init
-      class="bg-glm-50/30"
-    >
-      <Background :gap="22" :size="1.4" pattern-color="#a6f4c5" />
-      <Controls position="bottom-right" />
-      <MiniMap
-        pannable
-        zoomable
-        node-color="#12b76a"
-        mask-color="rgb(5 96 58 / 0.08)"
+    <GlmModal v-if="selOpen" @close="selOpen = false">
+      <template #header>
+        <Icon :name="styleOf(selRole).icon" size="16" class="text-glm-600" />
+        Selecionar {{ ROLE_CONFIG[selRole].label }}
+      </template>
+      <input
+        v-model="selQuery"
+        class="mb-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-glm-400"
+        placeholder="Buscar por nome, cidade ou cultura…"
       />
-    </VueFlow>
+      <p v-if="selLoading" class="py-6 text-center text-sm text-slate-400">
+        Carregando…
+      </p>
+      <p
+        v-else-if="!selFiltered.length"
+        class="py-6 text-center text-sm text-slate-400"
+      >
+        Nenhum registro encontrado.
+      </p>
+      <div v-else class="max-h-72 space-y-1 overflow-y-auto">
+        <button
+          v-for="i in selFiltered"
+          :key="i.id"
+          class="flex w-full items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-left transition hover:bg-white hover:shadow"
+          @click="pickEntity(i)"
+        >
+          <span>
+            <span class="block text-sm font-semibold text-slate-800">{{
+              i.name
+            }}</span>
+            <span class="block text-[11px] text-slate-400"
+              >{{ i.cidade ?? '—' }}/{{ i.estado ?? '' }}
+              <template v-if="i.cultura"> · {{ i.cultura }}</template></span
+            >
+          </span>
+          <span
+            class="rounded-md px-2 py-0.5 text-[11px] font-bold"
+            :class="styleOf(selRole).tag"
+            >{{ selTag(i) }}</span
+          >
+        </button>
+      </div>
+    </GlmModal>
+
+    <GlmModal v-if="freteOpen" @close="cancelFrete">
+      <template #header>
+        <Icon name="lucide:truck" size="16" class="text-amber-600" />
+        Configurar frete
+      </template>
+      <div
+        class="mb-3 grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-3 text-xs"
+      >
+        <div>
+          <p class="font-bold uppercase text-slate-400">Transportador</p>
+          <p class="font-semibold text-slate-800">
+            {{ freteTransportador?.name ?? '—' }}
+          </p>
+        </div>
+        <div>
+          <p class="font-bold uppercase text-slate-400">Preço/ton</p>
+          <p class="font-semibold text-amber-600">{{ money(fretePreco) }}/t</p>
+        </div>
+      </div>
+      <label class="label">Quantidade a transportar (t)</label>
+      <input
+        v-model.number="freteQtd"
+        type="number"
+        min="0"
+        class="input"
+        placeholder="Ex: 500"
+      />
+      <div
+        v-if="(freteQtd ?? 0) > 0"
+        class="mt-3 rounded-lg border border-glm-100 bg-glm-50 p-3"
+      >
+        <p class="text-[10px] font-bold uppercase tracking-wide text-glm-700">
+          Custo total do frete
+        </p>
+        <p class="text-lg font-extrabold text-glm-800">
+          {{ money(freteCusto) }}
+        </p>
+        <p class="text-[10px] text-slate-500">
+          {{ number(freteQtd ?? 0) }} t × {{ money(fretePreco) }}/t
+        </p>
+      </div>
+      <template #footer>
+        <button class="btn-ghost" @click="cancelFrete">Cancelar</button>
+        <button
+          class="btn-primary"
+          :disabled="(freteQtd ?? 0) <= 0"
+          @click="confirmFrete"
+        >
+          Confirmar frete
+        </button>
+      </template>
+    </GlmModal>
+
+    <GlmModal v-if="flowsOpen" @close="flowsOpen = false">
+      <template #header>
+        <Icon name="lucide:folder-open" size="16" class="text-glm-600" />
+        Fluxos salvos
+      </template>
+      <p
+        v-if="!flowList.length"
+        class="py-6 text-center text-sm text-slate-400"
+      >
+        Nenhum fluxo visível para você.
+      </p>
+      <div v-else class="max-h-72 space-y-1 overflow-y-auto">
+        <button
+          v-for="f in flowList"
+          :key="f.id"
+          class="flex w-full items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-left transition hover:bg-white hover:shadow"
+          @click="loadFlow(f.id)"
+        >
+          <span>
+            <span class="block text-sm font-semibold text-slate-800">{{
+              f.nome
+            }}</span>
+            <span class="block text-[11px] text-slate-400">{{
+              new Date(f.createdAt).toLocaleString('pt-BR')
+            }}</span>
+          </span>
+          <Icon name="lucide:arrow-right" size="14" class="text-slate-300" />
+        </button>
+      </div>
+    </GlmModal>
+
+    <Transition name="page">
+      <div
+        v-if="toastMsg"
+        class="fixed bottom-6 right-6 z-50 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-lg"
+        :class="{
+          'bg-glm-600': toastKind === 'success',
+          'bg-red-500': toastKind === 'error',
+          'bg-slate-800': toastKind === 'info',
+        }"
+      >
+        {{ toastMsg }}
+      </div>
+    </Transition>
   </div>
 </template>

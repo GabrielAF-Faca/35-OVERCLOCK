@@ -4,11 +4,7 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 
-  modules: [
-    'nuxt-auth-utils',
-    '@nuxt/icon',
-    '@vueuse/nuxt',
-  ],
+  modules: ['nuxt-auth-utils', '@nuxt/icon', '@vueuse/nuxt'],
 
   css: ['~/assets/css/main.css'],
 
@@ -36,6 +32,8 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     session: {
+      // password vem de NUXT_SESSION_PASSWORD em runtime
+      password: '',
       maxAge: 60 * 60 * 24 * 7,
     },
   },

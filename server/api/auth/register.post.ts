@@ -1,10 +1,16 @@
 import { z } from 'zod'
 
-const schema = z.object({
-  name: z.string().min(2, 'Informe seu nome').max(80),
-  email: z.string().email('E-mail inválido'),
-  password: z.string().min(8, 'A senha deve ter ao menos 8 caracteres').max(128),
-})
+const schema = z
+  .object({
+    name: z.string().min(2, 'Informe seu nome').max(80),
+    email: z.string().email('E-mail inválido'),
+    password: z
+      .string()
+      .min(8, 'A senha deve ter ao menos 8 caracteres')
+      .max(128),
+    tipoUsuario: tipoParticipanteEnum,
+  })
+  .merge(participantAttrsSchema)
 
 export default defineEventHandler(async (event) => {
   const body = await readValidatedBody(event, schema.safeParse)
@@ -24,7 +30,8 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const user = await createUser(body.data)
+  const { name, email, password, tipoUsuario, ...attrs } = body.data
+  const user = await createUser({ name, email, password, tipoUsuario, attrs })
 
   await setUserSession(event, {
     user: toPublicUser(user),

@@ -1,6 +1,2 @@
 export * from './users'
-export * from './culturas'
-export * from './ofertas'
-export * from './demandas'
-export * from './veiculos'
-export * from './contratos'
+export * from './fluxos'

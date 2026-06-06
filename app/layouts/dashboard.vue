@@ -1,12 +1,36 @@
 <script setup lang="ts">
+import { ROLE_CONFIG, tipoToRole } from '#shared/domain'
+
 const { user, clear } = useUserSession()
 
-const nav = [
-  { to: '/app', label: 'Grafo', icon: 'lucide:share-2' },
-  { to: '/app/producers', label: 'Produtores', icon: 'lucide:tractor' },
-  { to: '/app/logistics', label: 'Logística', icon: 'lucide:truck' },
-  { to: '/app/cooperatives', label: 'Cooperativas', icon: 'lucide:building-2' },
-]
+const role = computed(() => tipoToRole(user.value?.tipoUsuario))
+const isAdmin = computed(() => user.value?.tipoUsuario === 'ADMIN')
+
+const nav = computed(() => {
+  const items = [{ to: '/app', label: 'Grafo', icon: 'lucide:share-2' }]
+  if (role.value === 'produtor')
+    items.push({
+      to: '/app/sugestoes',
+      label: 'Sugestões',
+      icon: 'lucide:lightbulb',
+    })
+  if (role.value === 'transportador')
+    items.push({ to: '/app/agenda', label: 'Agenda', icon: 'lucide:calendar' })
+  items.push({
+    to: '/app/meus-dados',
+    label: isAdmin.value ? 'Dados gerais' : 'Meus dados',
+    icon: 'lucide:clipboard-list',
+  })
+  return items
+})
+
+const papelLabel = computed(() =>
+  isAdmin.value
+    ? 'Administrador'
+    : role.value
+      ? ROLE_CONFIG[role.value].label
+      : '—',
+)
 
 async function logout() {
   await $fetch('/api/auth/logout', { method: 'POST' })
@@ -26,7 +50,6 @@ const initials = computed(() =>
 
 <template>
   <div class="flex h-screen overflow-hidden bg-glm-50/40">
-    <!-- Sidebar -->
     <aside
       class="hidden w-64 shrink-0 flex-col border-r border-glm-100 bg-white/80 backdrop-blur md:flex"
     >
@@ -44,7 +67,11 @@ const initials = computed(() =>
           class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-glm-50 hover:text-glm-800"
           active-class="!bg-glm-100 !text-glm-800"
         >
-          <Icon :name="item.icon" size="18" class="text-glm-500 group-hover:text-glm-600" />
+          <Icon
+            :name="item.icon"
+            size="18"
+            class="text-glm-500 group-hover:text-glm-600"
+          />
           {{ item.label }}
         </NuxtLink>
       </nav>
@@ -57,8 +84,10 @@ const initials = computed(() =>
             {{ initials }}
           </div>
           <div class="min-w-0 flex-1">
-            <p class="truncate text-sm font-semibold text-slate-800">{{ user?.name }}</p>
-            <p class="truncate text-xs text-slate-400">{{ user?.email }}</p>
+            <p class="truncate text-sm font-semibold text-slate-800">
+              {{ user?.name }}
+            </p>
+            <p class="truncate text-xs text-slate-400">{{ papelLabel }}</p>
           </div>
           <button
             class="rounded-lg p-1.5 text-slate-400 transition hover:bg-glm-50 hover:text-glm-700"
@@ -71,7 +100,6 @@ const initials = computed(() =>
       </div>
     </aside>
 
-    <!-- Conteúdo -->
     <div class="flex min-w-0 flex-1 flex-col">
       <slot />
     </div>

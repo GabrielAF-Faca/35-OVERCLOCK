@@ -73,6 +73,11 @@
   @apply mb-1.5 block text-sm font-medium text-slate-700;
 }
 
+@utility btn-icon {
+  @apply flex size-8 items-center justify-center rounded-lg text-slate-500
+         ring-1 ring-slate-200 transition hover:bg-glm-50 hover:text-glm-700;
+}
+
 .page-enter-active,
 .page-leave-active {
   transition: all 0.25s ease;

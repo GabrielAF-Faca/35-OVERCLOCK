@@ -1,3 +1,7 @@
+import { eq } from 'drizzle-orm'
+import { db } from '../db'
+import { users } from '../db/schema/users'
+
 export interface StoredUser {
   id: string
   name: string
@@ -12,31 +16,31 @@ export interface PublicUser {
   email: string
 }
 
-const users = new Map<string, StoredUser>()
-
-let seeded = false
-async function ensureSeed() {
-  if (seeded) return
-  seeded = true
-  const email = 'demo@glm.app'
-  if (!users.has(email)) {
-    users.set(email, {
-      id: 'usr_demo',
-      name: 'Produtor Demo',
-      email,
-      password: await hashPassword('demo1234'),
-      createdAt: new Date().toISOString(),
-    })
-  }
-}
-
 export function toPublicUser(user: StoredUser): PublicUser {
   return { id: user.id, name: user.name, email: user.email }
 }
 
-export async function findUserByEmail(email: string): Promise<StoredUser | undefined> {
-  await ensureSeed()
-  return users.get(email.toLowerCase().trim())
+function rowToUser(row: typeof users.$inferSelect): StoredUser {
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    password: row.password,
+    createdAt: row.createdAt.toISOString(),
+  }
+}
+
+export async function findUserByEmail(
+  email: string,
+): Promise<StoredUser | undefined> {
+  const normalized = email.toLowerCase().trim()
+  const rows = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, normalized))
+    .limit(1)
+
+  return rows[0] ? rowToUser(rows[0]) : undefined
 }
 
 export async function createUser(input: {
@@ -44,16 +48,33 @@ export async function createUser(input: {
   email: string
   password: string
 }): Promise<StoredUser> {
-  await ensureSeed()
-  const email = input.email.toLowerCase().trim()
+  const normalizedEmail = input.email.toLowerCase().trim()
 
-  const user: StoredUser = {
-    id: `usr_${Math.random().toString(36).slice(2, 10)}`,
-    name: input.name.trim(),
-    email,
-    password: await hashPassword(input.password),
-    createdAt: new Date().toISOString(),
-  }
-  users.set(email, user)
-  return user
+  const [row] = await db
+    .insert(users)
+    .values({
+      id: `usr_${Math.random().toString(36).slice(2, 10)}`,
+      name: input.name.trim(),
+      email: normalizedEmail,
+      password: await hashPassword(input.password),
+    })
+    .returning()
+
+  return rowToUser(row)
+}
+
+/**
+ * Insere o usuário demo caso a tabela esteja vazia.
+ * Útil para desenvolvimento e primeiros testes.
+ */
+export async function seedDemoUser(): Promise<void> {
+  const existing = await db.select().from(users).limit(1)
+  if (existing.length > 0) return
+
+  await db.insert(users).values({
+    id: 'usr_demo',
+    name: 'Produtor Demo',
+    email: 'demo@glm.app',
+    password: await hashPassword('demo1234'),
+  })
 }

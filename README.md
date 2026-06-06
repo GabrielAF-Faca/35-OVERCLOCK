@@ -2,6 +2,8 @@
 
 Conecta o **produtor rural** a **cooperativas, logística e mercado** por meio de **grafos visuais** (estilo n8n). Você monta a cadeia agroindustrial num canvas e o sistema calcula a **receita líquida** de cada destino, considerando cotação, bônus, frete e descontos.
 
+![GLM — editor de fluxo da cadeia agroindustrial](./print.png)
+
 ## Stack
 
 Nuxt 4 (Vue 3) · PostgreSQL + Drizzle ORM · Vue Flow · Tailwind 4 + Lucide · nuxt-auth-utils · Zod

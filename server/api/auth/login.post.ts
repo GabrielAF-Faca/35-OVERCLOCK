@@ -13,7 +13,8 @@ export default defineEventHandler(async (event) => {
   }
 
   const user = await findUserByEmail(body.data.email)
-  const valid = user && (await verifyPassword(user.password, body.data.password))
+  const valid =
+    user?.password && (await verifyPassword(user.password, body.data.password))
 
   if (!user || !valid) {
     throw createError({

@@ -1,12 +1,18 @@
 import { eq } from 'drizzle-orm'
 import { db } from '../db'
-import { users } from '../db/schema/users'
+import { users } from '../db/schema'
+
+export type TipoUsuario =
+  | 'PRODUTOR'
+  | 'COOPERATIVA'
+  | 'AGROINDUSTRIA'
+  | 'TRANSPORTADOR'
 
 export interface StoredUser {
   id: string
   name: string
   email: string
-  password: string
+  password: string | null
   createdAt: string
 }
 
@@ -53,13 +59,14 @@ export async function createUser(input: {
   const [row] = await db
     .insert(users)
     .values({
-      id: `usr_${Math.random().toString(36).slice(2, 10)}`,
+      id: genId('usr'),
       name: input.name.trim(),
       email: normalizedEmail,
       password: await hashPassword(input.password),
     })
     .returning()
 
+  if (!row) throw new Error('Falha ao criar usuário')
   return rowToUser(row)
 }
 

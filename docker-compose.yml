@@ -10,7 +10,7 @@ services:
       POSTGRES_PASSWORD: glm
       POSTGRES_DB: glm
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U glm -d glm']
       interval: 10s

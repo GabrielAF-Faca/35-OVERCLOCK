@@ -22,11 +22,11 @@
 
 ### Problema
 
-O agronegócio brasileiro é um dos maiores do mundo, mas sua cadeia produtiva ainda opera com fragmentação de informação. Produtores rurais, cooperativas, transportadores, agroindústrias e exportadoras atuam em silos — cada um com seus próprios preços, prazos e condições. O produtor não tem visibilidade de **para quem vender**, **por qual preço**, **qual transportador contratar** e **qual a receita líquida real** de cada alternativa. O resultado é assimetria de informação e margens comprimidas.
+O agronegócio brasileiro é um dos maiores do mundo, mas sua cadeia produtiva ainda opera com fragmentação de informação. Produtores rurais, cooperativas, transportadores, agroindústrias e exportadoras atuam em silos, onde cada um com seus próprios preços, prazos e condições. O produtor não tem visibilidade de **para quem vender**, **por qual preço**, **qual transportador contratar** e **qual a receita líquida real** de cada alternativa. O resultado é assimetria de informação e margens comprimidas.
 
 ### Solução
 
-O **GLM** resolve esse problema com um **editor visual de fluxos baseado em grafos** (estilo n8n). O produtor monta a cadeia dele no canvas — conectando nós de produtor, cooperativa, transportador, agroindústria e exportadora — e o sistema calcula automaticamente a **receita líquida** de cada destino final, considerando:
+O **GLM** resolve esse problema com um **editor visual de fluxos baseado em grafos** (estilo n8n). O produtor monta a cadeia dele no canvas, conectando nós de produtor, cooperativa, transportador, agroindústria e exportadora — e o sistema calcula automaticamente a **receita líquida** de cada destino final, considerando:
 
 - Cotação da cultura no destino
 - Bônus por tonelada (agroindústria)

@@ -39,7 +39,6 @@ const { data: ofertas, refresh: refreshOfertas } = await useFetch<Oferta[]>(
 
 const erro = ref('')
 
-// --- Form: novo produtor ---
 const novoProdutor = reactive({
   name: '',
   email: '',
@@ -75,7 +74,6 @@ async function criarProdutor() {
   }
 }
 
-// --- Form: nova oferta ---
 const novaOferta = reactive({
   usuarioId: '',
   culturaId: '',

@@ -1,10 +1,42 @@
+import { eq } from 'drizzle-orm'
 import { db } from '../db'
 import { users, culturas, ofertas, demandas, veiculos } from '../db/schema'
 
-/**
- * Popula um mercado de exemplo (região de Mato Grosso) caso o catálogo de
- * culturas esteja vazio. Idempotente: usa IDs fixos + onConflictDoNothing.
- */
+export async function seedDemoParticipant(): Promise<void> {
+  await db
+    .update(users)
+    .set({
+      tipoUsuario: 'PRODUTOR',
+      cpfCnpj: '00.000.000/0001-00',
+      latitude: '-12.6300',
+      longitude: '-55.7200',
+      enderecoFormatado: 'Sorriso - MT',
+    })
+    .where(eq(users.id, 'usr_demo'))
+
+  await db
+    .insert(culturas)
+    .values({
+      id: 'cul_soja',
+      nome: 'Soja',
+      tipoCarga: 'GRANEL',
+      unidadeMedida: 'TON',
+    })
+    .onConflictDoNothing()
+
+  await db
+    .insert(ofertas)
+    .values({
+      id: 'ofr_demo_soja',
+      usuarioId: 'usr_demo',
+      culturaId: 'cul_soja',
+      quantidadeDisponivel: '1200.000',
+      precoUnitarioDesejado: '1820.00',
+      dataDisponibilidade: '2026-06-12',
+    })
+    .onConflictDoNothing()
+}
+
 export async function seedMarketplace(): Promise<void> {
   const existing = await db.select().from(culturas).limit(1)
   if (existing.length > 0) return
@@ -36,7 +68,6 @@ export async function seedMarketplace(): Promise<void> {
   await db
     .insert(users)
     .values([
-      // Produtores
       {
         id: 'usr_prod_sorriso',
         name: 'Fazenda Boa Esperança',
@@ -67,7 +98,6 @@ export async function seedMarketplace(): Promise<void> {
         longitude: '-56.0867',
         enderecoFormatado: 'Nova Mutum - MT',
       },
-      // Compradores
       {
         id: 'usr_agro_cuiaba',
         name: 'Agroindústria Cuiabá Grãos',
@@ -88,7 +118,16 @@ export async function seedMarketplace(): Promise<void> {
         longitude: '-55.5025',
         enderecoFormatado: 'Sinop - MT',
       },
-      // Transportadores
+      {
+        id: 'usr_coop_sorriso',
+        name: 'Coopermaps Sorriso',
+        email: 'coopermaps@glm.app',
+        tipoUsuario: 'COOPERATIVA',
+        cpfCnpj: '98.765.432/0001-10',
+        latitude: '-12.5453',
+        longitude: '-55.7211',
+        enderecoFormatado: 'Sorriso - MT',
+      },
       {
         id: 'usr_trans_norte',
         name: 'TransNorte Logística',
@@ -147,6 +186,23 @@ export async function seedMarketplace(): Promise<void> {
         precoUnitarioDesejado: '2900.00',
         dataDisponibilidade: '2026-06-10',
       },
+      // Ofertas de cooperativas (cooperativa atuando como fornecedora para agroindústria)
+      {
+        id: 'ofr_coop_soja',
+        usuarioId: 'usr_coop_sinop',
+        culturaId: 'cul_soja',
+        quantidadeDisponivel: '600.000',
+        precoUnitarioDesejado: '1880.00',
+        dataDisponibilidade: '2026-06-25',
+      },
+      {
+        id: 'ofr_coop_milho',
+        usuarioId: 'usr_coop_sorriso',
+        culturaId: 'cul_milho',
+        quantidadeDisponivel: '1000.000',
+        precoUnitarioDesejado: '750.00',
+        dataDisponibilidade: '2026-07-05',
+      },
     ])
     .onConflictDoNothing()
 
@@ -195,6 +251,22 @@ export async function seedMarketplace(): Promise<void> {
         capacidadeMaxima: '40.000',
         precoPorKm: '9.80',
         tiposCargaSuportados: ['VIVO'],
+      },
+      // Veículos de produtores (produtor transportador)
+      {
+        id: 'veh_prod_1',
+        usuarioId: 'usr_prod_sorriso',
+        capacidadeMaxima: '30.000',
+        precoPorKm: '6.50',
+        tiposCargaSuportados: ['GRANEL'],
+      },
+      // Veículos de cooperativas (cooperativa transportadora)
+      {
+        id: 'veh_coop_1',
+        usuarioId: 'usr_coop_sinop',
+        capacidadeMaxima: '45.000',
+        precoPorKm: '7.80',
+        tiposCargaSuportados: ['GRANEL', 'SACA'],
       },
     ])
     .onConflictDoNothing()

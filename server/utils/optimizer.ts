@@ -16,26 +16,13 @@ export interface RotaOtimizada {
   distanciaKm: number
   valorProduto: number
   valorFrete: number
-  /** Custo total minimizado: C = (Q × Pp) + (D × Pk). */
   custoTotal: number
 }
 
-/**
- * Engine de otimização: para uma demanda, varre as ofertas da mesma cultura,
- * cruza com os veículos que suportam o tipo de carga e calcula a triangulação
- * Produtor + Transportador de menor custo total na porta do comprador.
- *
- * Função de custo minimizada: C = (Q × Pp) + (D × Pk)
- *   Q  = quantidade negociada
- *   Pp = preço unitário do produtor
- *   D  = distância (km) entre produtor e comprador
- *   Pk = preço por km do transportador
- */
 export async function otimizarDemanda(
   demandaId: string,
   limit = 10,
 ): Promise<{ rotas: RotaOtimizada[] } | { erro: string }> {
-  // Demanda + comprador (nó de destino).
   const [demanda] = await db
     .select({
       id: demandas.id,
@@ -70,7 +57,6 @@ export async function otimizarDemanda(
   const quantidadeNecessaria = Number(demanda.quantidadeNecessaria)
   const precoMaximo = Number(demanda.precoMaximoAceitavel)
 
-  // Ofertas da mesma cultura + produtor (nós de origem).
   const ofertasDisponiveis = await db
     .select({
       id: ofertas.id,
@@ -90,7 +76,6 @@ export async function otimizarDemanda(
       ),
     )
 
-  // Veículos compatíveis com o tipo de carga da cultura.
   const veiculosCompativeis = await db
     .select({
       id: veiculos.id,
@@ -109,13 +94,13 @@ export async function otimizarDemanda(
     if (oferta.produtorLat == null || oferta.produtorLng == null) continue
 
     const precoUnitario = Number(oferta.preco)
-    if (precoUnitario > precoMaximo) continue // acima do teto da demanda
+    if (precoUnitario > precoMaximo) continue
 
     const distanciaKm = haversineKm(comprador, {
       lat: Number(oferta.produtorLat),
       lng: Number(oferta.produtorLng),
     })
-    if (distanciaKm > demanda.distanciaMaximaKm) continue // fora do raio
+    if (distanciaKm > demanda.distanciaMaximaKm) continue
 
     const quantidadeDisponivel = Number(oferta.quantidade)
 

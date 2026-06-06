@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 const schema = z.object({
-  usuarioId: z.string().min(1, 'Selecione o transportador'),
+  usuarioId: z.string().min(1, 'Selecione o proprietário do veículo'),
   capacidadeMaxima: z.number().positive('Capacidade deve ser positiva'),
   precoPorKm: z.number().nonnegative('Preço por km inválido'),
   tiposCargaSuportados: z

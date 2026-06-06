@@ -2,7 +2,6 @@ import { pgTable, text, numeric, date, timestamp } from 'drizzle-orm/pg-core'
 import { users } from './users'
 import { culturas } from './culturas'
 
-/** O que os produtores têm disponível (aresta potencial do grafo). */
 export const ofertas = pgTable('ofertas', {
   id: text('id').primaryKey(),
   usuarioId: text('usuario_id')

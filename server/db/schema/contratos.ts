@@ -10,7 +10,6 @@ export const statusOperacao = pgEnum('status_operacao', [
   'CANCELADO',
 ])
 
-/** O "match": triangulação Produtor + Comprador + Transportador fechada. */
 export const contratos = pgTable('contratos_operacao', {
   id: text('id').primaryKey(),
   ofertaId: text('oferta_id')

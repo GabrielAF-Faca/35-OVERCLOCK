@@ -11,8 +11,10 @@ export async function listOfertas() {
       dataDisponibilidade: ofertas.dataDisponibilidade,
       produtorId: users.id,
       produtorNome: users.name,
+      produtorTipo: users.tipoUsuario,
       culturaId: culturas.id,
       culturaNome: culturas.nome,
+      tipoCarga: culturas.tipoCarga,
       unidadeMedida: culturas.unidadeMedida,
     })
     .from(ofertas)

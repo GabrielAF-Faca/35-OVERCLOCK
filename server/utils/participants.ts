@@ -34,7 +34,6 @@ export async function listParticipants(
   return rows.map(rowToParticipant)
 }
 
-/** Compradores = cooperativas + agroindústrias (nós de destino). */
 export async function listBuyers(): Promise<Participant[]> {
   const rows = await db
     .select()

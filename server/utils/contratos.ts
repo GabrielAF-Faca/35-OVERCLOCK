@@ -1,6 +1,6 @@
 import { desc, eq } from 'drizzle-orm'
 import { db } from '../db'
-import { contratos, ofertas, demandas, users } from '../db/schema'
+import { contratos, ofertas, demandas, veiculos, users } from '../db/schema'
 import { alias } from 'drizzle-orm/pg-core'
 
 export type StatusOperacao =
@@ -11,6 +11,7 @@ export type StatusOperacao =
 
 const produtor = alias(users, 'produtor')
 const comprador = alias(users, 'comprador')
+const transportador = alias(users, 'transportador')
 
 export async function listContratos() {
   return db
@@ -23,12 +24,15 @@ export async function listContratos() {
       statusOperacao: contratos.statusOperacao,
       produtorNome: produtor.name,
       compradorNome: comprador.name,
+      transportadorNome: transportador.name,
     })
     .from(contratos)
     .innerJoin(ofertas, eq(contratos.ofertaId, ofertas.id))
     .innerJoin(demandas, eq(contratos.demandaId, demandas.id))
     .innerJoin(produtor, eq(ofertas.usuarioId, produtor.id))
     .innerJoin(comprador, eq(demandas.usuarioId, comprador.id))
+    .innerJoin(veiculos, eq(contratos.veiculoId, veiculos.id))
+    .innerJoin(transportador, eq(veiculos.usuarioId, transportador.id))
     .orderBy(desc(contratos.createdAt))
 }
 

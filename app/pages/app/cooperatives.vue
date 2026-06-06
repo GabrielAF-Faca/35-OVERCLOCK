@@ -15,6 +15,14 @@ interface Cultura {
   nome: string
   unidadeMedida: string
 }
+interface Oferta {
+  id: string
+  quantidadeDisponivel: string
+  precoUnitarioDesejado: string
+  produtorNome: string
+  culturaNome: string
+  unidadeMedida: string
+}
 interface Demanda {
   id: string
   quantidadeNecessaria: string
@@ -48,10 +56,13 @@ const { data: demandas, refresh: refreshDemandas } = await useFetch<Demanda[]>(
   '/api/demandas',
   { default: () => [] },
 )
+const { data: ofertas, refresh: refreshOfertas } = await useFetch<Oferta[]>(
+  '/api/ofertas',
+  { default: () => [] },
+)
 
 const erro = ref('')
 
-// --- Form: novo comprador ---
 const novoComprador = reactive({
   name: '',
   email: '',
@@ -86,7 +97,6 @@ async function criarComprador() {
   }
 }
 
-// --- Form: nova demanda ---
 const novaDemanda = reactive({
   usuarioId: '',
   culturaId: '',
@@ -117,7 +127,37 @@ async function criarDemanda() {
   }
 }
 
-// --- Otimização ---
+// Oferta da cooperativa/agroindústria (para vender à agroindústria)
+const novaOferta = reactive({
+  usuarioId: '',
+  culturaId: '',
+  quantidadeDisponivel: null as number | null,
+  precoUnitarioDesejado: null as number | null,
+  dataDisponibilidade: '',
+})
+const salvandoOferta = ref(false)
+
+async function criarOferta() {
+  erro.value = ''
+  salvandoOferta.value = true
+  try {
+    await $fetch('/api/ofertas', { method: 'POST', body: novaOferta })
+    Object.assign(novaOferta, {
+      usuarioId: '',
+      culturaId: '',
+      quantidadeDisponivel: null,
+      precoUnitarioDesejado: null,
+      dataDisponibilidade: '',
+    })
+    await refreshOfertas()
+  } catch (e) {
+    erro.value =
+      (e as { statusMessage?: string }).statusMessage ?? 'Erro ao salvar'
+  } finally {
+    salvandoOferta.value = false
+  }
+}
+
 const demandaAtiva = ref<Demanda | null>(null)
 const rotas = ref<RotaOtimizada[]>([])
 const otimizando = ref(false)
@@ -328,6 +368,78 @@ const tipoLabel: Record<string, string> = {
             Registrar demanda
           </button>
         </form>
+
+        <!-- Nova oferta (cooperativa/agroindústria como fornecedora) -->
+        <form class="card space-y-4" @submit.prevent="criarOferta">
+          <h2 class="flex items-center gap-2 text-sm font-bold text-slate-900">
+            <Icon name="lucide:wheat" size="18" class="text-glm-600" />
+            Nova oferta (fornecimento)
+            <span
+              class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700"
+            >
+              cooperativa → agroindústria
+            </span>
+          </h2>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label class="label">Fornecedor</label>
+              <select v-model="novaOferta.usuarioId" class="input" required>
+                <option value="" disabled>Selecione</option>
+                <option v-for="c in compradores" :key="c.id" :value="c.id">
+                  {{ c.name }}
+                </option>
+              </select>
+            </div>
+            <div>
+              <label class="label">Cultura</label>
+              <select v-model="novaOferta.culturaId" class="input" required>
+                <option value="" disabled>Selecione</option>
+                <option v-for="c in culturas" :key="c.id" :value="c.id">
+                  {{ c.nome }} ({{ c.unidadeMedida }})
+                </option>
+              </select>
+            </div>
+            <div>
+              <label class="label">Quantidade disponível</label>
+              <input
+                v-model.number="novaOferta.quantidadeDisponivel"
+                type="number"
+                step="any"
+                min="0"
+                class="input"
+                required
+              />
+            </div>
+            <div>
+              <label class="label">Preço unitário (R$)</label>
+              <input
+                v-model.number="novaOferta.precoUnitarioDesejado"
+                type="number"
+                step="any"
+                min="0"
+                class="input"
+                required
+              />
+            </div>
+            <div class="sm:col-span-2">
+              <label class="label">Disponível a partir de</label>
+              <input
+                v-model="novaOferta.dataDisponibilidade"
+                type="date"
+                class="input"
+              />
+            </div>
+          </div>
+          <button
+            class="btn-primary w-full"
+            :disabled="
+              salvandoOferta || !compradores.length || !culturas.length
+            "
+          >
+            <Icon name="lucide:plus" size="16" />
+            Registrar oferta
+          </button>
+        </form>
       </div>
 
       <!-- Lista de demandas -->
@@ -384,6 +496,52 @@ const tipoLabel: Record<string, string> = {
                   <Icon name="lucide:zap" size="14" />
                   Otimizar
                 </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Lista de ofertas (cooperativas vendendo) -->
+      <div class="card mt-5 !p-0 overflow-hidden">
+        <div class="border-b border-slate-100 px-6 py-4">
+          <h2 class="text-sm font-bold text-slate-900">
+            Ofertas para agroindústria
+            <span class="ml-1 text-slate-400">({{ ofertas.length }})</span>
+          </h2>
+        </div>
+        <div
+          v-if="!ofertas.length"
+          class="px-6 py-10 text-center text-sm text-slate-400"
+        >
+          Nenhuma oferta registrada ainda.
+        </div>
+        <table v-else class="w-full text-sm">
+          <thead>
+            <tr
+              class="border-b border-slate-100 text-left text-xs text-slate-400"
+            >
+              <th class="px-6 py-3 font-medium">Fornecedor</th>
+              <th class="px-6 py-3 font-medium">Cultura</th>
+              <th class="px-6 py-3 font-medium text-right">Quantidade</th>
+              <th class="px-6 py-3 font-medium text-right">Preço unit.</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="o in ofertas"
+              :key="o.id"
+              class="border-b border-slate-50 last:border-0 hover:bg-glm-50/40"
+            >
+              <td class="px-6 py-3 font-medium text-slate-800">
+                {{ o.produtorNome }}
+              </td>
+              <td class="px-6 py-3 text-slate-600">{{ o.culturaNome }}</td>
+              <td class="px-6 py-3 text-right text-slate-600">
+                {{ number(o.quantidadeDisponivel) }} {{ o.unidadeMedida }}
+              </td>
+              <td class="px-6 py-3 text-right font-medium text-slate-800">
+                {{ money(o.precoUnitarioDesejado) }}
               </td>
             </tr>
           </tbody>

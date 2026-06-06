@@ -4,10 +4,6 @@ function toRad(deg: number): number {
   return (deg * Math.PI) / 180
 }
 
-/**
- * Distância em km entre dois pontos (lat/long) pela fórmula de Haversine.
- * Aproxima o "peso" da aresta do grafo entre dois nós.
- */
 export function haversineKm(
   a: { lat: number; lng: number },
   b: { lat: number; lng: number },

@@ -11,8 +11,10 @@ export async function listDemandas() {
       distanciaMaximaKm: demandas.distanciaMaximaKm,
       compradorId: users.id,
       compradorNome: users.name,
+      compradorTipo: users.tipoUsuario,
       culturaId: culturas.id,
       culturaNome: culturas.nome,
+      tipoCarga: culturas.tipoCarga,
       unidadeMedida: culturas.unidadeMedida,
     })
     .from(demandas)

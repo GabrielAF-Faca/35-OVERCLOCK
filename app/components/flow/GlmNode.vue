@@ -15,7 +15,14 @@ const props = defineProps<{
 
 const palette: Record<
   GlmNodeData['kind'],
-  { icon: string; ring: string; iconBg: string; tag: string; tagText: string; label: string }
+  {
+    icon: string
+    ring: string
+    iconBg: string
+    tag: string
+    tagText: string
+    label: string
+  }
 > = {
   producer: {
     icon: 'lucide:tractor',
@@ -35,19 +42,19 @@ const palette: Record<
   },
   logistics: {
     icon: 'lucide:truck',
-    ring: 'ring-leaf-400/40',
-    iconBg: 'bg-lime-100 text-lime-700',
-    tag: 'bg-lime-50 text-lime-700',
-    tagText: 'Logística',
-    label: 'Logística',
+    ring: 'ring-amber-200',
+    iconBg: 'bg-amber-100 text-amber-700',
+    tag: 'bg-amber-50 text-amber-700',
+    tagText: 'Transportadora',
+    label: 'Transportadora',
   },
   market: {
     icon: 'lucide:store',
     ring: 'ring-teal-200',
     iconBg: 'bg-teal-100 text-teal-700',
     tag: 'bg-teal-50 text-teal-700',
-    tagText: 'Mercado',
-    label: 'Mercado',
+    tagText: 'Agroindústria',
+    label: 'Agroindústria',
   },
 }
 
@@ -62,7 +69,10 @@ const style = computed(() => palette[props.data.kind])
     <Handle type="target" :position="Position.Left" />
 
     <div class="flex items-start gap-3">
-      <div class="flex size-10 shrink-0 items-center justify-center rounded-xl" :class="style.iconBg">
+      <div
+        class="flex size-10 shrink-0 items-center justify-center rounded-xl"
+        :class="style.iconBg"
+      >
         <Icon :name="style.icon" size="20" />
       </div>
       <div class="min-w-0 flex-1">
@@ -72,8 +82,12 @@ const style = computed(() => palette[props.data.kind])
         >
           {{ style.tagText }}
         </span>
-        <p class="mt-1 truncate text-sm font-semibold text-slate-900">{{ data.label }}</p>
-        <p v-if="data.subtitle" class="truncate text-xs text-slate-400">{{ data.subtitle }}</p>
+        <p class="mt-1 truncate text-sm font-semibold text-slate-900">
+          {{ data.label }}
+        </p>
+        <p v-if="data.subtitle" class="truncate text-xs text-slate-400">
+          {{ data.subtitle }}
+        </p>
       </div>
     </div>
 

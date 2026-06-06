@@ -26,6 +26,32 @@ const { data: transportadores, refresh: refreshTransp } = await useFetch<
   query: { tipo: 'TRANSPORTADOR' },
   default: () => [],
 })
+const { data: produtores } = await useFetch<Participant[]>(
+  '/api/participants',
+  {
+    query: { tipo: 'PRODUTOR' },
+    default: () => [],
+  },
+)
+const { data: cooperativas } = await useFetch<Participant[]>(
+  '/api/participants',
+  {
+    query: { tipo: 'COOPERATIVA' },
+    default: () => [],
+  },
+)
+const { data: agroindustrias } = await useFetch<Participant[]>(
+  '/api/participants',
+  { query: { tipo: 'AGROINDUSTRIA' }, default: () => [] },
+)
+
+const todosProprietarios = computed(() => [
+  ...transportadores.value,
+  ...produtores.value,
+  ...cooperativas.value,
+  ...agroindustrias.value,
+])
+
 const { data: veiculos, refresh: refreshVeiculos } = await useFetch<Veiculo[]>(
   '/api/veiculos',
   { default: () => [] },
@@ -180,12 +206,33 @@ async function criarVeiculo() {
           </h2>
           <div class="grid gap-3 sm:grid-cols-2">
             <div class="sm:col-span-2">
-              <label class="label">Transportador</label>
+              <label class="label">Proprietário do veículo</label>
               <select v-model="novoVeiculo.usuarioId" class="input" required>
                 <option value="" disabled>Selecione</option>
-                <option v-for="t in transportadores" :key="t.id" :value="t.id">
-                  {{ t.name }}
-                </option>
+                <optgroup label="Transportadores">
+                  <option
+                    v-for="t in transportadores"
+                    :key="t.id"
+                    :value="t.id"
+                  >
+                    {{ t.name }}
+                  </option>
+                </optgroup>
+                <optgroup label="Produtores">
+                  <option v-for="p in produtores" :key="p.id" :value="p.id">
+                    {{ p.name }}
+                  </option>
+                </optgroup>
+                <optgroup label="Cooperativas">
+                  <option v-for="c in cooperativas" :key="c.id" :value="c.id">
+                    {{ c.name }}
+                  </option>
+                </optgroup>
+                <optgroup label="Agroindústrias">
+                  <option v-for="a in agroindustrias" :key="a.id" :value="a.id">
+                    {{ a.name }}
+                  </option>
+                </optgroup>
               </select>
             </div>
             <div>
@@ -237,13 +284,13 @@ async function criarVeiculo() {
           </div>
           <button
             class="btn-primary w-full"
-            :disabled="salvandoVeiculo || !transportadores.length"
+            :disabled="salvandoVeiculo || !todosProprietarios.length"
           >
             <Icon name="lucide:plus" size="16" />
             Registrar veículo
           </button>
-          <p v-if="!transportadores.length" class="text-xs text-slate-400">
-            Cadastre um transportador antes de registrar veículos.
+          <p v-if="!todosProprietarios.length" class="text-xs text-slate-400">
+            Cadastre um participante antes de registrar veículos.
           </p>
         </form>
       </div>

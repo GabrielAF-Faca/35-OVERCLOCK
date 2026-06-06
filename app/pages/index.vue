@@ -60,7 +60,7 @@ const audiences = [
 
         <p class="mx-auto mt-6 max-w-2xl text-center text-lg text-slate-600">
           O GLM transforma cadeias produtivas em grafos interativos. Modele, conecte e otimize
-          o caminho da produção — do campo à cooperativa, da transportadora ao comprador.
+          o caminho da produção - do campo à cooperativa, da transportadora ao comprador.
         </p>
 
         <div class="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">

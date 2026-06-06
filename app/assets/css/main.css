@@ -1,17 +1,11 @@
 @import 'tailwindcss';
 
-/* Estilos do Vue Flow (core + addons) */
 @import '@vue-flow/core/dist/style.css';
 @import '@vue-flow/core/dist/theme-default.css';
 @import '@vue-flow/controls/dist/style.css';
 @import '@vue-flow/minimap/dist/style.css';
 
-/* ──────────────────────────────────────────────────────────────
-   Tema GLM — tons de verde (Grafos de Logística e Mercado)
-   Tailwind 4 usa configuração CSS-first via @theme.
-   ────────────────────────────────────────────────────────────── */
 @theme {
-  /* Verde da marca */
   --color-glm-50: #ecfdf3;
   --color-glm-100: #d1fadf;
   --color-glm-200: #a6f4c5;
@@ -24,7 +18,6 @@
   --color-glm-900: #054f31;
   --color-glm-950: #053321;
 
-  /* Tons de terra/folha de apoio */
   --color-leaf-400: #84cc16;
   --color-leaf-500: #65a30d;
 
@@ -33,7 +26,6 @@
   --radius-glm: 0.875rem;
 }
 
-/* Base */
 @layer base {
   html {
     scroll-behavior: smooth;
@@ -49,8 +41,6 @@
   }
 }
 
-/* Utilitários de componentes reutilizáveis.
-   No Tailwind 4 usamos @utility para que possam ser compostos com @apply. */
 @utility btn {
   @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5
          text-sm font-semibold transition-all duration-200
@@ -83,7 +73,6 @@
   @apply mb-1.5 block text-sm font-medium text-slate-700;
 }
 
-/* Transição de página */
 .page-enter-active,
 .page-leave-active {
   transition: all 0.25s ease;
@@ -94,7 +83,6 @@
   transform: translateY(6px);
 }
 
-/* Ajustes finos do Vue Flow para combinar com o tema */
 .vue-flow__edge-path {
   stroke: var(--color-glm-400);
   stroke-width: 2;

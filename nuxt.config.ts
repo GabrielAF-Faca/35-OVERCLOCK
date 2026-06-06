@@ -1,6 +1,5 @@
 import tailwindcss from '@tailwindcss/vite'
 
-// https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
@@ -19,7 +18,7 @@ export default defineNuxtConfig({
 
   app: {
     head: {
-      title: 'GLM — Grafos de Logística e Mercado',
+      title: 'GLM - Grãos, Lavoura & Mercado',
       htmlAttrs: { lang: 'pt-BR' },
       meta: [
         { charset: 'utf-8' },
@@ -36,9 +35,8 @@ export default defineNuxtConfig({
   },
 
   runtimeConfig: {
-    // Sobrescreva via .env: NUXT_SESSION_PASSWORD (mín. 32 caracteres)
     session: {
-      maxAge: 60 * 60 * 24 * 7, // 7 dias
+      maxAge: 60 * 60 * 24 * 7,
     },
   },
 

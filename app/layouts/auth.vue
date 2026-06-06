@@ -9,10 +9,7 @@
         style="background-image: radial-gradient(circle at 1px 1px, white 1px, transparent 0); background-size: 28px 28px;"
       />
       <NuxtLink to="/" class="relative">
-        <span class="inline-flex items-center gap-2.5 text-white">
-          <Icon name="lucide:share-2" size="28" />
-          <span class="text-xl font-extrabold tracking-tight">GLM</span>
-        </span>
+        <GlmLogo light :size="36" />
       </NuxtLink>
 
       <div class="relative max-w-md text-white">

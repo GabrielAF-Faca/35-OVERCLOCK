@@ -42,7 +42,7 @@ const { loggedIn } = useUserSession()
         class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm text-slate-500 sm:flex-row sm:px-6"
       >
         <GlmLogo :size="24" />
-        <p>© {{ new Date().getFullYear() }} GLM — Grafos de Logística e Mercado.</p>
+        <p>© {{ new Date().getFullYear() }} GLM - Grafos de Logística e Mercado.</p>
         <p class="text-slate-400">Feito para o campo 🌱</p>
       </div>
     </footer>

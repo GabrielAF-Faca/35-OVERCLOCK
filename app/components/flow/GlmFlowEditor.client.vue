@@ -10,7 +10,6 @@ type Kind = 'producer' | 'cooperative' | 'logistics' | 'market'
 
 const nodeTypes = { glm: markRaw(GlmNode) }
 
-// Grafo inicial: Produtor → Cooperativa → Logística → Mercado
 const nodes = ref<Node[]>([
   { id: 'p1', type: 'glm', position: { x: 40, y: 120 }, data: { kind: 'producer', label: 'Fazenda Boa Vista', subtitle: 'Soja · 800 sacas', metric: 'Capacidade 92%' } },
   { id: 'p2', type: 'glm', position: { x: 40, y: 300 }, data: { kind: 'producer', label: 'Sítio Três Rios', subtitle: 'Milho · 420 sacas', metric: 'Capacidade 64%' } },

@@ -2,7 +2,7 @@
   "name": "glm-web",
   "private": true,
   "type": "module",
-  "description": "GLM — Grafos de Logística e Mercado. Conectando o produtor rural a cooperativas, logística e mercado.",
+  "description": "GLM - Grãos, Lavoura & Mercado. Conectando o produtor rural a cooperativas, logística e mercado.",
   "scripts": {
     "build": "nuxt build",
     "dev": "nuxt dev",

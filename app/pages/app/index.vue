@@ -14,7 +14,7 @@ const { user } = useUserSession()
           Cadeia produtiva
           <span class="rounded-full bg-glm-100 px-2 py-0.5 text-[11px] font-semibold text-glm-700">rascunho</span>
         </h1>
-        <p class="text-xs text-slate-400">Olá, {{ user?.name?.split(' ')[0] }} — arraste os nós e conecte os fluxos.</p>
+        <p class="text-xs text-slate-400">Olá, {{ user?.name?.split(' ')[0] }} - arraste os nós e conecte os fluxos.</p>
       </div>
 
       <div class="flex items-center gap-2">

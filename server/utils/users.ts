@@ -1,21 +1,11 @@
-/**
- * Store de usuários em memória — APENAS para o boilerplate.
- *
- * Em produção, troque por um banco real (Postgres + Drizzle/Prisma,
- * Nuxt Hub D1, Supabase, etc.). Mantenha a mesma interface de funções
- * abaixo e o resto do app continua funcionando.
- */
-
 export interface StoredUser {
   id: string
   name: string
   email: string
-  /** hash gerado por hashPassword() do nuxt-auth-utils */
   password: string
   createdAt: string
 }
 
-/** Dados públicos do usuário (o que vai para a sessão / cliente). */
 export interface PublicUser {
   id: string
   name: string
@@ -24,8 +14,6 @@ export interface PublicUser {
 
 const users = new Map<string, StoredUser>()
 
-// Usuário de demonstração: demo@glm.app / demo1234
-// (criado de forma preguiçosa na primeira leitura para usar hashPassword)
 let seeded = false
 async function ensureSeed() {
   if (seeded) return

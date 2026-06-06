@@ -258,15 +258,46 @@ async function openSelector(nodeId: string) {
   }
 }
 
+const selRankable = computed(() =>
+  ['cooperativa', 'agroindustria', 'exportadora', 'transportador'].includes(
+    selRole.value,
+  ),
+)
+const selLowerBetter = computed(() => selRole.value === 'transportador')
+
+function selScore(i: NodeEntity): number {
+  if (selRole.value === 'agroindustria')
+    return (i.cotacao ?? 0) + (i.bonus ?? 0)
+  if (selRole.value === 'cooperativa' || selRole.value === 'exportadora')
+    return i.cotacao ?? 0
+  if (selRole.value === 'transportador') return i.precoPorTonelada ?? 0
+  return 0
+}
+
 const selFiltered = computed(() => {
   const q = selQuery.value.toLowerCase()
-  if (!q) return selItems.value
-  return selItems.value.filter(
-    (i) =>
-      i.name.toLowerCase().includes(q) ||
-      (i.cidade ?? '').toLowerCase().includes(q) ||
-      (i.cultura ?? '').toLowerCase().includes(q),
-  )
+  let items = q
+    ? selItems.value.filter(
+        (i) =>
+          i.name.toLowerCase().includes(q) ||
+          (i.cidade ?? '').toLowerCase().includes(q) ||
+          (i.cultura ?? '').toLowerCase().includes(q),
+      )
+    : selItems.value
+  if (selRankable.value) {
+    items = [...items].sort((a, b) =>
+      selLowerBetter.value
+        ? selScore(a) - selScore(b)
+        : selScore(b) - selScore(a),
+    )
+  }
+  return items
+})
+
+const selBestId = computed(() => {
+  if (!selRankable.value || selFiltered.value.length < 2) return null
+  const top = selFiltered.value[0]
+  return top && selScore(top) > 0 ? top.id : null
 })
 
 function pickEntity(entity: NodeEntity) {
@@ -596,13 +627,23 @@ const vazio = computed(() => vfNodes.value.length === 0)
         <button
           v-for="i in selFiltered"
           :key="i.id"
-          class="flex w-full items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-left transition hover:bg-white hover:shadow"
+          class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left transition hover:bg-white hover:shadow"
+          :class="
+            i.id === selBestId ? 'bg-glm-50 ring-1 ring-glm-200' : 'bg-slate-50'
+          "
           @click="pickEntity(i)"
         >
           <span>
-            <span class="block text-sm font-semibold text-slate-800">{{
-              i.name
-            }}</span>
+            <span
+              class="flex items-center gap-1.5 text-sm font-semibold text-slate-800"
+            >
+              {{ i.name }}
+              <span
+                v-if="i.id === selBestId"
+                class="rounded-full bg-glm-100 px-1.5 py-0.5 text-[10px] font-bold text-glm-700"
+                >⭐ Melhor opção</span
+              >
+            </span>
             <span class="block text-[11px] text-slate-400"
               >{{ i.cidade ?? '—' }}/{{ i.estado ?? '' }}
               <template v-if="i.cultura"> · {{ i.cultura }}</template></span

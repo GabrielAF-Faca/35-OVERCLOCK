@@ -231,7 +231,7 @@ docker compose up -d
 docker exec glm-app npm run db:migrate
 ```
 
-Acesse **http://localhost:3000** — login com `admin@glm.app` / `glm12345`.
+Acesse **http://localhost:3000** — login com `planalto@glm.app` / `glm12345`.
 
 ---
 

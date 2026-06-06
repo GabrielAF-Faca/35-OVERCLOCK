@@ -1,0 +1,127 @@
+@import 'tailwindcss';
+
+/* Estilos do Vue Flow (core + addons) */
+@import '@vue-flow/core/dist/style.css';
+@import '@vue-flow/core/dist/theme-default.css';
+@import '@vue-flow/controls/dist/style.css';
+@import '@vue-flow/minimap/dist/style.css';
+
+/* ──────────────────────────────────────────────────────────────
+   Tema GLM — tons de verde (Grafos de Logística e Mercado)
+   Tailwind 4 usa configuração CSS-first via @theme.
+   ────────────────────────────────────────────────────────────── */
+@theme {
+  /* Verde da marca */
+  --color-glm-50: #ecfdf3;
+  --color-glm-100: #d1fadf;
+  --color-glm-200: #a6f4c5;
+  --color-glm-300: #6ce9a6;
+  --color-glm-400: #32d583;
+  --color-glm-500: #12b76a;
+  --color-glm-600: #039855;
+  --color-glm-700: #027a48;
+  --color-glm-800: #05603a;
+  --color-glm-900: #054f31;
+  --color-glm-950: #053321;
+
+  /* Tons de terra/folha de apoio */
+  --color-leaf-400: #84cc16;
+  --color-leaf-500: #65a30d;
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+  --radius-glm: 0.875rem;
+}
+
+/* Base */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-glm-50/40 text-slate-800 antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  ::selection {
+    @apply bg-glm-200 text-glm-900;
+  }
+}
+
+/* Utilitários de componentes reutilizáveis.
+   No Tailwind 4 usamos @utility para que possam ser compostos com @apply. */
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5
+         text-sm font-semibold transition-all duration-200
+         focus:outline-none focus-visible:ring-2 focus-visible:ring-glm-500/50
+         disabled:cursor-not-allowed disabled:opacity-60;
+}
+
+@utility btn-primary {
+  @apply btn bg-glm-600 text-white shadow-sm shadow-glm-600/20
+         hover:bg-glm-700 active:scale-[0.98];
+}
+
+@utility btn-ghost {
+  @apply btn bg-white/70 text-glm-800 ring-1 ring-glm-200
+         hover:bg-white hover:ring-glm-300;
+}
+
+@utility input {
+  @apply w-full rounded-xl border-0 bg-white px-4 py-3 text-sm text-slate-900
+         shadow-sm ring-1 ring-slate-200 transition
+         placeholder:text-slate-400
+         focus:outline-none focus:ring-2 focus:ring-glm-500;
+}
+
+@utility card {
+  @apply rounded-2xl bg-white/80 p-6 shadow-sm ring-1 ring-slate-200/70 backdrop-blur;
+}
+
+@utility label {
+  @apply mb-1.5 block text-sm font-medium text-slate-700;
+}
+
+/* Transição de página */
+.page-enter-active,
+.page-leave-active {
+  transition: all 0.25s ease;
+}
+.page-enter-from,
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+/* Ajustes finos do Vue Flow para combinar com o tema */
+.vue-flow__edge-path {
+  stroke: var(--color-glm-400);
+  stroke-width: 2;
+}
+.vue-flow__edge.animated .vue-flow__edge-path {
+  stroke-dasharray: 6;
+}
+.vue-flow__handle {
+  background: var(--color-glm-600);
+  border: 2px solid white;
+  width: 11px;
+  height: 11px;
+}
+.vue-flow__controls {
+  border-radius: 0.75rem;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgb(5 96 58 / 0.12);
+  border: 1px solid var(--color-glm-100);
+}
+.vue-flow__controls-button {
+  background: white;
+  border-bottom: 1px solid var(--color-glm-100);
+}
+.vue-flow__controls-button svg {
+  fill: var(--color-glm-700);
+}
+.vue-flow__minimap {
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
